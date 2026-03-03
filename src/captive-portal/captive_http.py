@@ -12,7 +12,6 @@ import gc
 from collections import namedtuple
 from typing import TYPE_CHECKING, cast
 
-import micropython
 import uerrno
 import uio
 import uselect as select
@@ -124,7 +123,6 @@ class HTTPServer(Server):
         self.ssid = new_ssid
         self.routes = {b"/": self.connected}
 
-    @micropython.native
     def handle(self, sock: socket.socket, event: int, others: list[int]) -> None:
         """Dispatch an HTTP socket event.
 
@@ -183,9 +181,15 @@ class HTTPServer(Server):
         path = full_path.split(b"?")
         base_path = path[0]
         query = path[1] if len(path) > 1 else None
-        query_params: dict[bytes, bytes] = (
-            dict([param.split(b"=") for param in query.split(b"&")]) if query else {}
-        )
+        try:
+            query_params: dict[bytes, bytes] = (
+                dict([param.split(b"=") for param in query.split(b"&")])
+                if query
+                else {}
+            )
+        except ValueError:
+            print("Malformed query string:", query)
+            query_params = {}
         host = [line.split(b": ")[1] for line in req_lines if b"Host:" in line][0]
 
         return ReqInfo(req_type, base_path, query_params, host)
