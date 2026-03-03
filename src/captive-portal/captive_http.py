@@ -233,7 +233,7 @@ class HTTPServer(Server):
 
         Routes mapped to ``bytes`` values are treated as file paths whose
         contents are streamed back.  Routes mapped to callables are invoked
-        with the request parameters.  Unrecognised routes receive a 404.
+        with the request parameters.  Unrecognized routes receive a 404.
 
         Args:
             req: The parsed request information.
