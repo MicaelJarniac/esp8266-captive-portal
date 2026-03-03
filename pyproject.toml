@@ -1,0 +1,19 @@
+[project]
+name = "esp8266-captive-portal"
+version = "0.1.0"
+description = "ESP8266 captive portal"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "esptool>=5.2.0",
+    "micropython-esp8266-stubs>=1.27.0.post1",
+    "mpremote>=1.27.0",
+]
+
+[tool.pyright]
+typeCheckingMode = "basic"
+reportMissingModuleSource = "none"
+pythonPlatform = "All"
