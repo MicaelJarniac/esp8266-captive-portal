@@ -5,8 +5,6 @@ application.  It creates a :class:`~captive_portal.CaptivePortal` instance
 and starts the portal service.
 """
 
-from __future__ import annotations
-
 __all__: tuple[str, ...] = ("portal",)
 
 from captive_portal import CaptivePortal

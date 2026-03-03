@@ -4,8 +4,6 @@ Coordinates the WiFi access point, DNS server, and HTTP server to present a
 captive configuration page where users can enter their home WiFi credentials.
 """
 
-from __future__ import annotations
-
 __all__: tuple[str, ...] = ("CaptivePortal",)
 
 import gc

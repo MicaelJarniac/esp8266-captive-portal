@@ -4,8 +4,6 @@ Reads and writes WiFi SSID/password pairs to a simple comma-separated file
 on the MicroPython filesystem so they survive reboots.
 """
 
-from __future__ import annotations
-
 __all__: tuple[str, ...] = ("Creds",)
 
 import uos

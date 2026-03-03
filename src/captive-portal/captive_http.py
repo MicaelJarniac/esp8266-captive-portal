@@ -4,8 +4,6 @@ Serves the WiFi configuration page and handles credential submission via an
 HTTP-based request/response flow over TCP.
 """
 
-from __future__ import annotations
-
 __all__: tuple[str, ...] = ("HTTPServer",)
 
 import gc

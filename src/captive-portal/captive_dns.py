@@ -5,8 +5,6 @@ which is useful for captive portals where you want to redirect all traffic
 to a specific page.
 """
 
-from __future__ import annotations
-
 __all__: tuple[str, ...] = ("DNSServer",)
 
 import gc
