@@ -12,7 +12,9 @@ essid
 hexlify
 ipoll
 isconnected
+Jarniac
 jasonbrackman
+Micael
 micropython
 mpremote
 NSCOUNT
