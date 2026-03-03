@@ -11,6 +11,7 @@ dev = [
     "esptool>=5.2.0",
     "micropython-esp8266-stubs>=1.27.0.post1",
     "mpremote>=1.27.0",
+    "nox>=2026.2.9",
 ]
 
 [tool.pyright]
