@@ -18,6 +18,7 @@ justfile
 Micael
 micropython
 mpremote
+mypy
 NSCOUNT
 POLLHUP
 POLLIN
@@ -26,6 +27,7 @@ pycache
 QDCOUNT
 REUSEADDR
 sourcery
+typeshed
 ubinascii
 uerrno
 uselect
