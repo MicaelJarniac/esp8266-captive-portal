@@ -40,3 +40,7 @@ fresh: wipe deps load
 
 connect:
   mpremote connect auto
+
+forget:
+  mpremote fs rm :wifi.creds
+  just reset
