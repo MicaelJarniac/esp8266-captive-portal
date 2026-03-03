@@ -20,9 +20,9 @@ copy:
 reset:
   mpremote reset
 
-load: deps copy reset
+load: copy reset
 
-fresh: wipe load
+fresh: wipe deps load
 
 connect:
   mpremote connect auto
