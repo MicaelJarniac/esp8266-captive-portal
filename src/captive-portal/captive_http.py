@@ -4,10 +4,13 @@ Serves the WiFi configuration page and handles credential submission via an
 HTTP-based request/response flow over TCP.
 """
 
+from __future__ import annotations
+
 __all__: tuple[str, ...] = ("HTTPServer",)
 
 import gc
 from collections import namedtuple
+from typing import TYPE_CHECKING, cast
 
 import micropython
 import uerrno
@@ -16,6 +19,10 @@ import uselect as select
 import usocket as socket
 from credentials import Creds
 from server import Server
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
 
 # body: file-like readable stream (supports ``readinto``)
 # buff: mutable byte buffer for outgoing TCP data
@@ -31,6 +38,7 @@ ReqInfo = namedtuple("ReqInfo", ["type", "path", "params", "host"])
 
 
 def unquote(string: str | bytes | None) -> bytes:
+    # sourcery skip: inline-variable, merge-list-appends-into-extend
     """Decode a percent-encoded URL component into raw bytes.
 
     A stripped-down implementation of :func:`urllib.parse.unquote_to_bytes`
@@ -88,13 +96,12 @@ class HTTPServer(Server):
                 bytes object.
         """
         super().__init__(poller, 80, socket.SOCK_STREAM, "HTTP Server")
-        if isinstance(local_ip, bytes):
-            self.local_ip: bytes = local_ip
-        else:
-            self.local_ip = local_ip.encode()
-        self.request: dict[int, bytes] = dict()
-        self.conns: dict[int, WriteConn] = dict()
-        self.routes = {b"/": b"./index.html", b"/login": self.login}
+        self.local_ip = local_ip if isinstance(local_ip, bytes) else local_ip.encode()
+        self.request: dict[int, bytes] = {}
+        self.conns: dict[int, WriteConn] = {}
+        self.routes: dict[
+            bytes, bytes | Callable[[dict[bytes, bytes]], tuple[bytes, bytes]]
+        ] = {b"/": b"./index.html", b"/login": self.login}
 
         self.ssid: bytes | None = None
 
@@ -177,12 +184,7 @@ class HTTPServer(Server):
         base_path = path[0]
         query = path[1] if len(path) > 1 else None
         query_params: dict[bytes, bytes] = (
-            {
-                key: val
-                for key, val in [param.split(b"=") for param in query.split(b"&")]
-            }
-            if query
-            else {}
+            dict([param.split(b"=") for param in query.split(b"&")]) if query else {}
         )
         host = [line.split(b": ")[1] for line in req_lines if b"Host:" in line][0]
 
@@ -200,16 +202,17 @@ class HTTPServer(Server):
         Returns:
             A ``(body, headers)`` tuple for the HTTP response.
         """
-        ssid = unquote(params.get(b"ssid", None))
-        password = unquote(params.get(b"password", None))
+        ssid = unquote(params.get(b"ssid"))
+        password = unquote(params.get(b"password"))
 
         # Write out credentials
         Creds(ssid=ssid, password=password).write()
 
-        headers = (
-            b"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://{:s}\r\n".format(
+        headers = cast(
+            "bytes",
+            b"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://{:s}\r\n".format(  # pyright: ignore[reportAttributeAccessIssue]
                 self.local_ip
-            )
+            ),
         )
 
         return b"", headers
@@ -228,7 +231,7 @@ class HTTPServer(Server):
         body = open("./connected.html", "rb").read() % (self.ssid, self.local_ip)
         return body, headers
 
-    def get_response(self, req: ReqInfo) -> tuple[uio.BufferedIOBase, bytes]:
+    def get_response(self, req: ReqInfo) -> tuple[uio.BytesIO, bytes]:
         """Generate an HTTP response body and headers for the given request.
 
         Routes mapped to ``bytes`` values are treated as file paths whose
@@ -261,6 +264,7 @@ class HTTPServer(Server):
         return uio.BytesIO(b""), headers
 
     def is_valid_req(self, req: ReqInfo) -> bool:
+        # sourcery skip: assign-if-exp, reintroduce-else
         """Check whether the request targets a known route on this server.
 
         Requests whose ``Host`` header does not match :attr:`local_ip` are
@@ -289,7 +293,7 @@ class HTTPServer(Server):
             s: The client socket to read from.
         """
 
-        data = s.read()
+        data = cast("bytes", s.read())
         if not data:
             # no data in the TCP stream, so close the socket
             self.close(s)
@@ -309,10 +313,11 @@ class HTTPServer(Server):
         req = self.parse_request(self.request.pop(sid))
 
         if not self.is_valid_req(req):
-            headers = (
-                b"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://{:s}/\r\n".format(
+            headers = cast(
+                "bytes",
+                b"HTTP/1.1 307 Temporary Redirect\r\nLocation: http://{:s}/\r\n".format(  # pyright: ignore[reportAttributeAccessIssue]
                     self.local_ip
-                )
+                ),
             )
             body = uio.BytesIO(b"")
             self.prepare_write(s, body, headers)
@@ -324,7 +329,7 @@ class HTTPServer(Server):
         self.prepare_write(s, body, headers)
 
     def prepare_write(
-        self, s: socket.socket, body: uio.BufferedIOBase, headers: bytes
+        self, s: socket.socket, body: uio.BytesIO, headers: bytes
     ) -> None:
         """Buffer the response headers and first chunk of body for sending.
 
@@ -337,16 +342,16 @@ class HTTPServer(Server):
             headers: The raw HTTP response headers.
         """
         # add newline to headers to signify transition to body
-        headers += "\r\n"
+        headers += b"\r\n"
         # TCP/IP MSS is 536 bytes, so create buffer of this size and
         # initially populate with header data
-        buff = bytearray(headers + "\x00" * (536 - len(headers)))
+        buff = bytearray(headers + b"\x00" * (536 - len(headers)))
         # use memoryview to read directly into the buffer without copying
         buffmv = memoryview(buff)
         # start reading body data into the memoryview starting after
         # the headers, and writing at most the remaining space of the buffer
         # return the number of bytes written into the memoryview from the body
-        bw = body.readinto(buffmv[len(headers) :], 536 - len(headers))
+        bw = cast("int", body.readinto(buffmv[len(headers) :], 536 - len(headers)))  # pyright: ignore[reportAttributeAccessIssue]
         # save place for next write event
         c = WriteConn(body, buff, buffmv, [0, len(headers) + bw])
         self.conns[id(s)] = c
@@ -365,8 +370,7 @@ class HTTPServer(Server):
         """
 
         # get the data that needs to be written to this socket
-        c = self.conns[id(sock)]
-        if c:
+        if c := self.conns[id(sock)]:
             # write next 536 bytes (max) into the socket
             try:
                 bytes_written = sock.write(

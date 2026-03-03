@@ -4,6 +4,8 @@ Reads and writes WiFi SSID/password pairs to a simple comma-separated file
 on the MicroPython filesystem so they survive reboots.
 """
 
+from __future__ import annotations
+
 __all__: tuple[str, ...] = ("Creds",)
 
 import uos
@@ -32,11 +34,13 @@ class Creds:
     def write(self) -> None:
         """Write credentials to :attr:`CRED_FILE` if valid input found."""
         if self.is_valid():
+            if self.ssid is None or self.password is None:
+                raise RuntimeError("Cannot write invalid credentials to disk")
             with open(self.CRED_FILE, "wb") as f:
                 f.write(b",".join([self.ssid, self.password]))
             print("Wrote credentials to {:s}".format(self.CRED_FILE))
 
-    def load(self) -> Creds:
+    def load(self) -> Creds:  # sourcery skip: use-contextlib-suppress
         """Load credentials from :attr:`CRED_FILE`.
 
         If the file does not exist or contains invalid data the credentials
@@ -59,7 +63,7 @@ class Creds:
 
         return self
 
-    def remove(self) -> None:
+    def remove(self) -> None:  # sourcery skip: use-contextlib-suppress
         """Delete the credentials file from disk and reset fields to ``None``."""
         try:
             uos.remove(self.CRED_FILE)

@@ -211,6 +211,11 @@ name = "esp8266-captive-portal"
 version = "0.1.0"
 source = { virtual = "." }
 
+[package.optional-dependencies]
+stubs = [
+    { name = "micropython-esp8266-stubs" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "esptool" },
@@ -221,6 +226,8 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "micropython-esp8266-stubs", marker = "extra == 'stubs'", specifier = ">=1.27.0.post1" }]
+provides-extras = ["stubs"]
 
 [package.metadata.requires-dev]
 dev = [

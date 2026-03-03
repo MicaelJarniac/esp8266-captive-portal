@@ -6,6 +6,11 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = []
 
+[project.optional-dependencies]
+stubs = [
+    "micropython-esp8266-stubs>=1.27.0.post1",
+]
+
 [dependency-groups]
 dev = [
     "esptool>=5.2.0",
@@ -15,7 +20,41 @@ dev = [
     "nox-uv>=0.7.1",
 ]
 
+# https://micropython-stubs.readthedocs.io/en/main/pyproject.html#pyproject-config
+
+# ###################################################################
+# pyright and pylance options:
+# ###################################################################
+
 [tool.pyright]
+include = ["src"]
+ignore = ["**/typings"]
+# exclude = [".*", "__*", "**/typings"]
+
 typeCheckingMode = "basic"
+stubPath = "typings"
+typeshedPath = "typings"
+pythonPlatform = "Linux"
+pythonVersion = "3.10"
+
 reportMissingModuleSource = "none"
-pythonPlatform = "All"
+reportUnnecessaryTypeIgnoreComment = "information"
+
+# ###################################################################
+# # mypy global options:
+# ###################################################################
+[tool.mypy]
+platform = "linux"
+python_version = "3.10"
+
+mypy_path = "typings"
+custom_typeshed_dir = "typings"
+files = "*.py"
+exclude = [
+    "typings[\\/].*", # TOML basic string 
+]
+
+follow_imports = "silent"
+follow_imports_for_stubs = true
+no_site_packages = true
+check_untyped_defs = true

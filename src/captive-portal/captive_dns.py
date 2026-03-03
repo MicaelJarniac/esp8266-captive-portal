@@ -5,6 +5,8 @@ which is useful for captive portals where you want to redirect all traffic
 to a specific page.
 """
 
+from __future__ import annotations
+
 __all__: tuple[str, ...] = ("DNSServer",)
 
 import gc
@@ -118,14 +120,18 @@ class DNSServer(Server):
 
         # check the DNS question, and respond with an answer
         try:
-            data, sender = sock.recvfrom(1024)
-            request = DNSQuery(data)
-
-            print("Sending {:s} -> {:s}".format(request.domain, self.ip_addr))
-            sock.sendto(request.answer(self.ip_addr), sender)
-
-            # help MicroPython with memory management
-            del request
-            gc.collect()
+            self._handle_dns_request(sock)
         except Exception as e:
             print("DNS server exception:", e)
+
+    def _handle_dns_request(self, sock: socket.socket) -> None:
+        """Read a DNS query from *sock* and send back a spoofed answer."""
+        data, sender = sock.recvfrom(1024)
+        request = DNSQuery(data)
+
+        print("Sending {:s} -> {:s}".format(request.domain, self.ip_addr))
+        sock.sendto(request.answer(self.ip_addr), sender)
+
+        # help MicroPython with memory management
+        del request
+        gc.collect()

@@ -25,6 +25,7 @@ POLLOUT
 pycache
 QDCOUNT
 REUSEADDR
+sourcery
 ubinascii
 uerrno
 uselect

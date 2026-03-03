@@ -5,6 +5,8 @@ binding, and poll registration for both TCP (stream) and UDP (datagram)
 protocols.
 """
 
+from __future__ import annotations
+
 __all__: tuple[str, ...] = ("Server",)
 
 import uselect as select

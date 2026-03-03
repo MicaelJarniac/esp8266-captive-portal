@@ -4,6 +4,8 @@ Coordinates the WiFi access point, DNS server, and HTTP server to present a
 captive configuration page where users can enter their home WiFi credentials.
 """
 
+from __future__ import annotations
+
 __all__: tuple[str, ...] = ("CaptivePortal",)
 
 import gc
@@ -123,6 +125,7 @@ class CaptivePortal:
         return False
 
     def check_valid_wifi(self) -> bool:
+        # sourcery skip: assign-if-exp, reintroduce-else
         """Check the current WiFi state and manage the access-point lifecycle.
 
         Handles three scenarios:
@@ -154,7 +157,8 @@ class CaptivePortal:
             remaining = self.AP_OFF_DELAY
         else:
             remaining = self.AP_OFF_DELAY - time.ticks_diff(
-                time.ticks_ms(), self.conn_time_start
+                time.ticks_ms(),
+                self.conn_time_start,
             )
             if remaining <= 0:
                 self.ap_if.active(False)
@@ -190,6 +194,10 @@ class CaptivePortal:
 
                 if self.check_valid_wifi():
                     print("Connected to WiFi!")
+                    if self.creds.ssid is None:
+                        raise RuntimeError(
+                            "Connected to WiFi but credentials are missing"
+                        )
                     self.http_server.set_ip(self.local_ip, self.creds.ssid)
                     self.dns_server.stop(self.poller)
                     break
@@ -210,6 +218,8 @@ class CaptivePortal:
             ``True`` if the event was handled by the DNS server,
             ``False`` if it should be passed to another handler.
         """
+        if self.dns_server is None:
+            raise RuntimeError("DNS server is not configured")
         if sock is self.dns_server.sock:
             # ignore UDP socket hangups
             if event == select.POLLHUP:
@@ -226,6 +236,8 @@ class CaptivePortal:
             event: The poll event flags.
             others: Additional event data from ``ipoll``.
         """
+        if self.http_server is None:
+            raise RuntimeError("HTTP server is not configured")
         self.http_server.handle(sock, event, others)
 
     def cleanup(self) -> None:
@@ -243,9 +255,8 @@ class CaptivePortal:
         Returns:
             ``True`` if connected successfully, ``False`` otherwise.
         """
-        if self.creds.load().is_valid():
-            if self.connect_to_wifi():
-                return True
+        if self.creds.load().is_valid() and self.connect_to_wifi():
+            return True
 
         # WiFi Connection failed - remove credentials from disk
         self.creds.remove()
