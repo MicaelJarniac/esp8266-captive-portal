@@ -12,15 +12,29 @@ wipe:
 deps:
   mpremote mip install github:josverl/micropython-stubs/mip/typing_mpy.json
 
-copy:
+cross:
+  rm -rf build
+  mkdir -p build
   for file in src/captive-portal/*; do \
+    base=$(basename "$file"); \
+    if [[ "$base" == "main.py" || "$base" == "boot.py" ]]; then \
+      cp "$file" build/; \
+    elif [[ "$file" == *.py ]]; then \
+      mpy-cross "$file" -o "build/$(basename "$file" .py).mpy"; \
+    else \
+      cp "$file" build/; \
+    fi \
+  done
+
+copy:
+  for file in build/*; do \
     mpremote fs cp "$file" :; \
   done
 
 reset:
   mpremote reset
 
-load: copy reset
+load: cross copy reset
 
 fresh: wipe deps load
 
