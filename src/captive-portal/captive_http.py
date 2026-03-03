@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, cast
 
 import uerrno
 import uio
+import ujson
 import uselect as select
 import usocket as socket
 from credentials import Creds
@@ -22,6 +23,7 @@ from server import Server
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import network
 
 # body: file-like readable stream (supports ``readinto``)
 # buff: mutable byte buffer for outgoing TCP data
@@ -86,21 +88,30 @@ class HTTPServer(Server):
     swapped to show a "connected" confirmation page instead.
     """
 
-    def __init__(self, poller: select.poll, local_ip: str | bytes) -> None:
+    def __init__(
+        self,
+        poller: select.poll,
+        local_ip: str | bytes,
+        sta_if: network.WLAN | None = None,
+    ) -> None:
         """Create the HTTP server bound to TCP port 80.
 
         Args:
             poller: The shared poll object used to monitor socket events.
             local_ip: The IP address of the captive portal, as a string or
                 bytes object.
+            sta_if: Optional station-mode WLAN interface used for network
+                scanning.  When ``None`` the ``/scan`` endpoint is still
+                registered but returns an empty list.
         """
         super().__init__(poller, 80, socket.SOCK_STREAM, "HTTP Server")
         self.local_ip = local_ip if isinstance(local_ip, bytes) else local_ip.encode()
+        self.sta_if = sta_if
         self.request: dict[int, bytes] = {}
         self.conns: dict[int, WriteConn] = {}
         self.routes: dict[
             bytes, bytes | Callable[[dict[bytes, bytes]], tuple[bytes, bytes]]
-        ] = {b"/": b"./index.html", b"/login": self.login}
+        ] = {b"/": b"./index.html", b"/login": self.login, b"/scan": self.scan_networks}
 
         self.ssid: bytes | None = None
 
@@ -220,6 +231,42 @@ class HTTPServer(Server):
         )
 
         return b"", headers
+
+    def scan_networks(self, params: dict[bytes, bytes]) -> tuple[bytes, bytes]:
+        """Scan for nearby WiFi networks and return JSON.
+
+        Activates the station interface (if available), runs a synchronous
+        scan, and returns a de-duplicated list sorted by signal strength.
+
+        Args:
+            params: Query-string parameters (unused).
+
+        Returns:
+            A ``(body, headers)`` tuple with a JSON array as the body.
+        """
+        headers = b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+        networks: list[dict[str, object]] = []
+
+        if self.sta_if is not None:
+            try:
+                self.sta_if.active(True)
+                results = self.sta_if.scan()
+                seen: set[str] = set()
+                for ssid_raw, _bssid, _channel, rssi, security, _hidden in results:
+                    ssid_str = ssid_raw.decode("utf-8") if ssid_raw else ""
+                    if not ssid_str or ssid_str in seen:
+                        continue
+                    seen.add(ssid_str)
+                    networks.append(
+                        {"s": ssid_str, "r": rssi, "e": security > 0}
+                    )
+                networks.sort(key=lambda n: n["r"], reverse=True)  # type: ignore[arg-type]
+            except Exception as exc:
+                print("WiFi scan error:", exc)
+
+        gc.collect()
+        body: bytes = ujson.dumps(networks).encode()
+        return body, headers
 
     def connected(self, params: dict[bytes, bytes]) -> tuple[bytes, bytes]:
         """Serve the "connected" confirmation page.

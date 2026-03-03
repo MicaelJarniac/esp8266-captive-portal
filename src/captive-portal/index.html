@@ -2,18 +2,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>WiFi Login</title>
+    <title>WiFi Setup</title>
     <style>
       body {
         font-family: sans-serif;
         background: #3498db;
         width: 100%;
         text-align: center;
-        margin: 20px 0px 20px 0px;
+        margin: 20px 0;
       }
       p {
         font-size: 12px;
-        text-decoration: none;
         color: #fff;
       }
       h1 {
@@ -23,9 +22,10 @@
       .box {
         background: white;
         width: 40ch;
+        max-width: 90%;
         border-radius: 6px;
-        margin: 0 auto 0 auto;
-        padding: 10px 0px 10px 0px;
+        margin: 0 auto;
+        padding: 10px 0;
       }
       input[type='text'],
       input[type='password'] {
@@ -34,7 +34,7 @@
         border-bottom: #ccc 2px solid;
         padding: 8px;
         width: 60%;
-        color: #aaa;
+        color: #555;
         margin-top: 10px;
         font-size: 1em;
         border-radius: 4px;
@@ -42,21 +42,107 @@
       .btn {
         background: #2ecc71;
         width: 50%;
-        padding-top: 5px;
-        padding-bottom: 5px;
+        padding: 5px 0;
         color: white;
         border-radius: 4px;
         border: #27ae60 1px solid;
-        margin: 20 auto;
+        margin: 20px auto 10px;
         font-weight: 800;
         font-size: 0.8em;
+        cursor: pointer;
+      }
+      .btn:disabled {
+        background: #95a5a6;
+        border-color: #7f8c8d;
+      }
+      .btn-scan {
+        background: #3498db;
+        color: white;
+        border: #2980b9 1px solid;
+        border-radius: 4px;
+        padding: 4px 12px;
+        font-size: 0.75em;
+        cursor: pointer;
+        margin-top: 6px;
+      }
+      #nets {
+        text-align: left;
+        margin: 8px auto;
+        width: 70%;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .net {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 6px 8px;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+        font-size: 0.85em;
+        color: #333;
+      }
+      .net:hover {
+        background: #eaf6ff;
+      }
+      .net.active {
+        background: #d5f0ff;
+      }
+      .right {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+      .bars {
+        display: inline-flex;
+        align-items: flex-end;
+        gap: 1px;
+        height: 12px;
+      }
+      .bars span {
+        display: inline-block;
+        width: 3px;
+        background: #bbb;
+        border-radius: 1px;
+      }
+      .bars span.on {
+        background: #2ecc71;
+      }
+      .lock {
+        font-size: 0.7em;
+        color: #e67e22;
+      }
+      #status {
+        font-size: 0.8em;
+        color: #999;
+        margin: 6px 0;
+      }
+      .or-manual {
+        font-size: 0.75em;
+        color: #888;
+        margin: 8px 0 0;
       }
     </style>
   </head>
   <body>
     <form action="/login" method="get" class="box">
-      <h1>WiFi login credentials</h1>
-      <input type="text" placeholder="My WiFi SSID" name="ssid" required />
+      <h1>WiFi Setup</h1>
+
+      <div id="status">Scanning...</div>
+      <div id="nets"></div>
+      <button type="button" class="btn-scan" onclick="doScan()">
+        Scan Again
+      </button>
+      <p class="or-manual">or type an SSID below</p>
+
+      <input
+        type="text"
+        id="ssid"
+        placeholder="WiFi SSID"
+        name="ssid"
+        required
+      />
 
       <br />
 
@@ -71,5 +157,77 @@
 
       <button type="submit" class="btn">Connect</button>
     </form>
+
+    <script>
+      var ssidInput = document.getElementById('ssid');
+      var netsDiv = document.getElementById('nets');
+      var statusDiv = document.getElementById('status');
+
+      function bars(rssi) {
+        var n =
+          rssi > -50 ? 4 : rssi > -60 ? 3 : rssi > -70 ? 2 : 1;
+        var h = '';
+        for (var i = 1; i <= 4; i++)
+          h +=
+            '<span style="height:' +
+            i * 3 +
+            'px" class="' +
+            (i <= n ? 'on' : '') +
+            '"></span>';
+        return h;
+      }
+
+      function selectNet(ssid) {
+        ssidInput.value = ssid;
+        var items = netsDiv.getElementsByClassName('net');
+        for (var i = 0; i < items.length; i++)
+          items[i].className = 'net' + (items[i].getAttribute('data-s') === ssid ? ' active' : '');
+      }
+
+      function doScan() {
+        statusDiv.textContent = 'Scanning...';
+        netsDiv.innerHTML = '';
+        var x = new XMLHttpRequest();
+        x.open('GET', '/scan', true);
+        x.onload = function () {
+          if (x.status === 200) {
+            var nets = JSON.parse(x.responseText);
+            if (nets.length === 0) {
+              statusDiv.textContent = 'No networks found';
+              return;
+            }
+            statusDiv.textContent = nets.length + ' network' + (nets.length > 1 ? 's' : '') + ' found';
+            var h = '';
+            for (var i = 0; i < nets.length; i++) {
+              var n = nets[i];
+              h +=
+                '<div class="net" data-s="' +
+                n.s.replace(/"/g, '&quot;') +
+                '" onclick="selectNet(\'' +
+                n.s.replace(/'/g, "\\'") +
+                '\')">' +
+                '<span>' +
+                n.s.replace(/</g, '&lt;') +
+                '</span>' +
+                '<span class="right">' +
+                '<span class="bars">' +
+                bars(n.r) +
+                '</span>' +
+                (n.e ? '<span class="lock">&#x1f512;</span>' : '') +
+                '</span></div>';
+            }
+            netsDiv.innerHTML = h;
+          } else {
+            statusDiv.textContent = 'Scan failed';
+          }
+        };
+        x.onerror = function () {
+          statusDiv.textContent = 'Scan error';
+        };
+        x.send();
+      }
+
+      doScan();
+    </script>
   </body>
 </html>

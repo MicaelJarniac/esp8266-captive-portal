@@ -35,13 +35,16 @@ class CaptivePortal:
     AP_OFF_DELAY: int = const(10 * 1000)
     MAX_CONN_ATTEMPTS: int = 10
 
-    def __init__(self, essid: bytes | None = None) -> None:
+    def __init__(self, essid: bytes | None = None, ap_password: bytes | None = None) -> None:
         """Initialise the captive portal.
 
         Args:
             essid: Custom access-point name as bytes.  When ``None`` a name
                 is derived from the last three bytes of the device MAC
                 address (e.g. ``b"ESP8266-abcdef"``).
+            ap_password: Optional WPA2 password for the setup access point.
+                Must be at least 8 bytes long.  When ``None`` the AP is
+                started in open (no password) mode.
         """
         self.local_ip: str = self.AP_IP
         self.sta_if: network.WLAN = network.WLAN(network.STA_IF)
@@ -50,6 +53,7 @@ class CaptivePortal:
         if essid is None:
             essid = b"ESP8266-%s" % binascii.hexlify(self.ap_if.config("mac")[-3:])
         self.essid: bytes = essid
+        self.ap_password: bytes | None = ap_password
 
         self.creds: Creds = Creds()
 
@@ -60,7 +64,10 @@ class CaptivePortal:
         self.conn_time_start: int | None = None
 
     def start_access_point(self) -> None:
-        """Activate the soft access point with an open auth mode.
+        """Activate the soft access point.
+
+        When :attr:`ap_password` is set (>= 8 bytes) the AP uses WPA2-PSK
+        authentication.  Otherwise it starts in open (no password) mode.
 
         Configures the AP interface with :attr:`AP_IP` as the IP address,
         netmask, gateway, and DNS server so that all traffic is routed
@@ -76,7 +83,14 @@ class CaptivePortal:
         self.ap_if.ifconfig(
             (self.local_ip, "255.255.255.0", self.local_ip, self.local_ip)
         )
-        self.ap_if.config(essid=self.essid, authmode=network.AUTH_OPEN)
+        if self.ap_password is not None and len(self.ap_password) >= 8:
+            self.ap_if.config(
+                essid=self.essid,
+                authmode=network.AUTH_WPA2_PSK,
+                password=self.ap_password,
+            )
+        else:
+            self.ap_if.config(essid=self.essid, authmode=network.AUTH_OPEN)
         print("AP mode configured:", self.ap_if.ifconfig())
 
     def connect_to_wifi(self) -> bool:
@@ -175,8 +189,11 @@ class CaptivePortal:
         print("Starting captive portal")
         self.start_access_point()
 
+        # Activate station interface for network scanning (does not connect)
+        self.sta_if.active(True)
+
         if self.http_server is None:
-            self.http_server = HTTPServer(self.poller, self.local_ip)
+            self.http_server = HTTPServer(self.poller, self.local_ip, self.sta_if)
             print("Configured HTTP server")
         if self.dns_server is None:
             self.dns_server = DNSServer(self.poller, self.local_ip)
